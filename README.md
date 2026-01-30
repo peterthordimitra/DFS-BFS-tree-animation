@@ -1,0 +1,1 @@
+Tree search algorithms are methods for visiting or locating specific nodes in a tree data structure, classified primarily by the order in which they explore the nodes. They are several search algorithms available, including DFS (Depth-First Search) and BFS (Breadth-First Search).
