@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decision Tree Search Visualizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .slider-label {
+            font-weight: bold;
+            color: #555;
+            min-width: 40px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 80px;
+            height: 34px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #2196F3;
+            transition: 0.4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #4CAF50;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(46px);
+        }
+
+        input:disabled + .slider {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .start-btn {
+            padding: 12px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .start-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .start-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .start-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        #canvas {
+            display: block;
+            margin: 0 auto;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            background: #fafafa;
+        }
+
+        .info {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .current-algorithm {
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 18px;
+            color: #333;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌳 Decision Tree Search Visualizer</h1>
+        
+        <div class="current-algorithm" id="algorithmDisplay">Current: Depth-First Search (DFS)</div>
+        
+        <div class="controls">
+            <div class="slider-container">
+                <span class="slider-label">DFS</span>
+                <label class="switch">
+                    <input type="checkbox" id="algorithmToggle">
+                    <span class="slider"></span>
+                </label>
+                <span class="slider-label">BFS</span>
+            </div>
+            
+            <button class="start-btn" id="startBtn">Start</button>
+        </div>
+
+        <canvas id="canvas" width="1100" height="600"></canvas>
+
+        <div class="info">
+            Click "Start" to watch the selected algorithm traverse the tree. Edges turn red as they are visited.
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const algorithmToggle = document.getElementById('algorithmToggle');
+        const algorithmDisplay = document.getElementById('algorithmDisplay');
+
+        let isAnimating = false;
+        let currentAlgorithm = 'DFS';
+
+        // Tree structure definition
+        class TreeNode {
+            constructor(id, x, y) {
+                this.id = id;
+                this.x = x;
+                this.y = y;
+                this.children = [];
+                this.parent = null;
+            }
+
+            addChild(child) {
+                this.children.push(child);
+                child.parent = this;
+            }
+        }
+
+        // Build the tree structure
+        function buildTree() {
+            const nodes = [];
+            const levels = 5;
+            const levelY = [50, 150, 250, 350, 450, 550];
+            
+            // Root node
+            const root = new TreeNode(0, canvas.width / 2, levelY[0]);
+            nodes.push(root);
+            
+            let nodeId = 1;
+            
+            // Level 1: 2 children
+            const level1Count = 2;
+            const level1Spacing = canvas.width / (level1Count + 1);
+            for (let i = 0; i < level1Count; i++) {
+                const node = new TreeNode(nodeId++, level1Spacing * (i + 1), levelY[1]);
+                root.addChild(node);
+                nodes.push(node);
+            }
+            
+            // Level 2: 3 children per level 1 node
+            nodes.slice(1, 3).forEach((parent, idx) => {
+                const childCount = 3;
+                const parentX = parent.x;
+                const spacing = 150;
+                const startX = parentX - spacing;
+                
+                for (let i = 0; i < childCount; i++) {
+                    const node = new TreeNode(nodeId++, startX + i * spacing, levelY[2]);
+                    parent.addChild(node);
+                    nodes.push(node);
+                }
+            });
+            
+            // Level 3: 2 children for each level 2 node
+            nodes.slice(3, 9).forEach((parent, idx) => {
+                const childCount = 2;
+                const parentX = parent.x;
+                const spacing = 60;
+                const startX = parentX - spacing / 2;
+                
+                for (let i = 0; i < childCount; i++) {
+                    const node = new TreeNode(nodeId++, startX + i * spacing, levelY[3]);
+                    parent.addChild(node);
+                    nodes.push(node);
+                }
+            });
+            
+            // Level 4: 1-2 children for some level 3 nodes
+            const level3Nodes = nodes.slice(9, 21);
+            for (let i = 0; i < level3Nodes.length; i += 2) {
+                const parent = level3Nodes[i];
+                const childCount = i % 4 === 0 ? 2 : 1;
+                const parentX = parent.x;
+                const spacing = 40;
+                const startX = childCount === 1 ? parentX : parentX - spacing / 2;
+                
+                for (let j = 0; j < childCount; j++) {
+                    const node = new TreeNode(nodeId++, startX + j * spacing, levelY[4]);
+                    parent.addChild(node);
+                    nodes.push(node);
+                }
+            }
+            
+            return { root, nodes };
+        }
+
+        const tree = buildTree();
+        const edges = [];
+
+        // Build edges list
+        function buildEdges(node) {
+            node.children.forEach(child => {
+                edges.push({ from: node, to: child, visited: false });
+                buildEdges(child);
+            });
+        }
+
+        buildEdges(tree.root);
+
+        // Draw the tree
+        function drawTree() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw edges
+            edges.forEach(edge => {
+                ctx.beginPath();
+                ctx.moveTo(edge.from.x, edge.from.y);
+                ctx.lineTo(edge.to.x, edge.to.y);
+                ctx.strokeStyle = edge.visited ? '#ff0000' : '#000000';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            });
+            
+            // Draw nodes
+            tree.nodes.forEach(node => {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 20, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Draw node ID
+                ctx.fillStyle = '#333';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(node.id, node.x, node.y);
+            });
+        }
+
+        // Reset edges
+        function resetEdges() {
+            edges.forEach(edge => edge.visited = false);
+        }
+
+        // DFS traversal
+        function* dfsTraversal(node, parentNode = null) {
+            if (parentNode) {
+                const edge = edges.find(e => e.from === parentNode && e.to === node);
+                if (edge) {
+                    yield edge;
+                }
+            }
+            
+            for (const child of node.children) {
+                yield* dfsTraversal(child, node);
+            }
+        }
+
+        // BFS traversal
+        function* bfsTraversal(root) {
+            const queue = [{ node: root, parent: null }];
+            
+            while (queue.length > 0) {
+                const { node, parent } = queue.shift();
+                
+                if (parent) {
+                    const edge = edges.find(e => e.from === parent && e.to === node);
+                    if (edge) {
+                        yield edge;
+                    }
+                }
+                
+                node.children.forEach(child => {
+                    queue.push({ node: child, parent: node });
+                });
+            }
+        }
+
+        // Animate traversal
+        async function animateTraversal() {
+            isAnimating = true;
+            startBtn.disabled = true;
+            algorithmToggle.disabled = true;
+            
+            resetEdges();
+            drawTree();
+            
+            const traversal = currentAlgorithm === 'DFS' 
+                ? dfsTraversal(tree.root) 
+                : bfsTraversal(tree.root);
+            
+            for (const edge of traversal) {
+                edge.visited = true;
+                drawTree();
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+            
+            isAnimating = false;
+            startBtn.disabled = false;
+            algorithmToggle.disabled = false;
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', () => {
+            if (!isAnimating) {
+                animateTraversal();
+            }
+        });
+
+        algorithmToggle.addEventListener('change', (e) => {
+            currentAlgorithm = e.target.checked ? 'BFS' : 'DFS';
+            algorithmDisplay.textContent = e.target.checked 
+                ? 'Current: Breadth-First Search (BFS)' 
+                : 'Current: Depth-First Search (DFS)';
+        });
+
+        // Initial draw
+        drawTree();
+    </script>
+</body>
+</html>
